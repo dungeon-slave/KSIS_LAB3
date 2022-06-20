@@ -1,4 +1,4 @@
-﻿using System.Net;
+using System.Net;
 using System.Net.Sockets;
 
 namespace LB3
@@ -9,7 +9,10 @@ namespace LB3
         List<TcpClient> Clients = new();
         TcpListener Server;
 
-        public TCP(string UserIP) { this.Server = new(IPAddress.Parse(UserIP), TcpPort); }
+        public TCP(string UserIP)
+        {
+            this.Server = new(IPAddress.Parse(UserIP), TcpPort);
+        }
         public void RunServer(bool IsRun)
         {
             if (IsRun)
@@ -22,17 +25,15 @@ namespace LB3
                 Server.Server.Close();
             }
         }
-        public TcpClient? AddClient(string? ClientIP, string MyIP)
+        public TcpClient? AddClient(string? ClientIP)
         {
             TcpClient NewClient;
 
             if (ClientIP == null) { NewClient = Server.AcceptTcpClient(); }
             else
             {
-                NewClient = new(); ;
-                NewClient.Client.Bind(new IPEndPoint(IPAddress.Parse(MyIP), 0));
+                NewClient = new();
                 NewClient.Connect(IPAddress.Parse(ClientIP), TcpPort);
-                //NewClient.Client.Connect(IPAddress.Parse(ClientIP), TcpPort);
             }
             Clients.Add(NewClient);
 
@@ -43,10 +44,15 @@ namespace LB3
         {
             if (Clients != null)
             {
-                Console.WriteLine(Clients.Count);
                 foreach (var Client in Clients) { Client.Client.Send(Message); }
             }
         }
-        public void Disconnect() { foreach (var Client in Clients) { Client.Close(); } }
+        public void Disconnect()
+        {
+            foreach (var Client in Clients)
+            {
+                Client.Close();
+            }
+        }
     }
 }

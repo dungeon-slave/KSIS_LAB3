@@ -1,14 +1,11 @@
-﻿using System.Text;
+using System.Text;
 using System.Net.Sockets;
 
 namespace LB3
 {
     class Chat
     {
-        const string ExitCommand = "#Exit";
-        const string Arrow = "----------> ";
-        const string ClientEnter = "ENTERED IN THE CHAT!";
-        const string ClientExit = " EXIT FROM CHAT!";
+        readonly string[] StringElements = { "#Exit", "----------> ", "ENTERED IN THE CHAT!", " EXIT FROM CHAT!", "CHAT STARTED!" };
         string? UserIP;
         string? UserName;
         UDP? UDP1;
@@ -26,94 +23,110 @@ namespace LB3
         void BeginReceiveBroadcast()
         {
             string[] ClientData;
-            TcpClient NewClient;
             bool IsExit;
 
-            while (IsMessaging)
+            try
             {
-                ClientData = UnformatMessage(UDP1.ReceiveBroadcast(), out IsExit).Split(' ');
-                if (ClientData[2] != UserIP)
+                while (IsMessaging)
                 {
-                    NewClient = TCP1.AddClient(ClientData[2], UserIP);
-                    Task.Run(() => BeginListenClient(NewClient));
-                    Console.WriteLine($"{ClientData[0]} {ClientData[1]}[{ClientData[2]}] {ClientData[3]} {ClientData[4]}" +
-                    $" {ClientData[5]} {ClientData[6]}");
+                    ClientData = UnformatMessage(UDP1.ReceiveBroadcast(), out IsExit).Split(' ');
+                    if (ClientData[2] != UserIP)
+                    {
+                        TcpClient NewClient = TCP1.AddClient(ClientData[2]);
+                        Task.Run(() => BeginListenClient(NewClient));
+                        Console.WriteLine($"{ClientData[0]} {ClientData[1]}[{ClientData[2]}] {ClientData[3]} {ClientData[4]}" +
+                        $" {ClientData[5]} {ClientData[6]}");
+                    }
                 }
+            }
+            catch (System.Exception)
+            {
+                return;
             }
         }
         void BeginAddClients()
         {
-            TcpClient Newclient;
-
-            TCP1.RunServer(true);
-            while (IsMessaging)
+            try
             {
-                Newclient = TCP1.AddClient(null, UserIP);
-                Task.Run(() => BeginListenClient(Newclient));
+                TCP1.RunServer(true);
+                while (IsMessaging)
+                {
+                    TcpClient NewClient = TCP1.AddClient(null);
+                    Task.Run(() => BeginListenClient(NewClient));
+                }
+                TCP1.RunServer(false);                
+            }
+            catch (System.Exception)
+            {
+                return;
             }
         }
         void BeginMessaging()
         {
             string Message;
 
-            do
+            try
             {
-                Message = Console.ReadLine();
-                if (Message == ExitCommand)
+                do
                 {
-                    TCP1.SendMessage(FormatMessage($"{UserName}[{UserIP}]", 2));
-                    IsMessaging = false;
-                    TCP1.Disconnect();
-                    TCP1.RunServer(false);
-                    UDP1.Receiver.Close();
-                }
-                else { TCP1.SendMessage(FormatMessage($"{UserName}[{UserIP}]: {Message}", 0)); }
-            } while (IsMessaging);
+                    Message = Console.ReadLine();
+                    if (Message == StringElements[0])
+                    {
+                        IsMessaging = false;
+                        TCP1.SendMessage(FormatMessage($"{UserName}[{UserIP}]", 2));
+                        TCP1.Disconnect();
+                    }
+                    else { TCP1.SendMessage(FormatMessage($"{UserName}[{UserIP}]: {Message}", 0)); }
+                } while (IsMessaging);
+            }
+            catch (System.Exception)
+            {
+                return;
+            }
         }
         void BeginListenClient(TcpClient Client)
         {
             byte[] Message = new byte[512];
             bool IsExit;
-            Console.WriteLine("Listening");
 
-            while (IsMessaging)
+            try
             {
-                Client.Client.Receive(Message);
-                Console.WriteLine(UnformatMessage(Message, out IsExit));
-                if (IsExit)
+                while (IsMessaging)
                 {
-                    Console.WriteLine("Removed");
-                    TCP1.RemoveClient(Client);
-                    return;
+                    Client.Client.Receive(Message);
+                    Console.WriteLine(UnformatMessage(Message, out IsExit));
+                    if (IsExit)
+                    {
+                        TCP1.RemoveClient(Client);
+                        return;
+                    }                        
                 }
+            }
+            catch (System.Exception)
+            {
+                return;
             }
         }
         byte[] FormatMessage(string Message, byte Type)
         {
             byte[] FormatedMessage = new byte[512];
-            byte[] MessageToSend = new byte[256];
 
             switch (Type)
             {
-                case 0:
-                    {
-                        MessageToSend = Encoding.UTF8.GetBytes(Message);
-                        break;
-                    }
                 case 1:
                     {
-                        MessageToSend = Encoding.UTF8.GetBytes(Message + ClientEnter);
+                        Message = StringElements[1] + Message + StringElements[2];
                         break;
                     }
                 case 2:
                     {
-                        MessageToSend = Encoding.UTF8.GetBytes(Message + ClientExit);
+                        Message = StringElements[1] + Message + StringElements[3];
                         break;
                     }
             }
             FormatedMessage[0] = Type;
-            FormatedMessage[1] = (byte)MessageToSend.Length;
-            MessageToSend.CopyTo(FormatedMessage, 2);
+            FormatedMessage[1] = (byte)Encoding.UTF8.GetBytes(Message).Length;
+            Encoding.UTF8.GetBytes(Message).CopyTo(FormatedMessage, 2);
 
             return FormatedMessage;
         }
@@ -122,8 +135,7 @@ namespace LB3
             if (Message[0] == 2) { IsDisconnect = true; }
             else { IsDisconnect = false; }
 
-            if (Message[0] != 0) return Arrow + Encoding.UTF8.GetString(Message, 2, Message[1]);
-            else return Encoding.UTF8.GetString(Message, 2, Message[1]);
+            return Encoding.UTF8.GetString(Message, 2, Message[1]);
         }
         public void RunChat()
         {
@@ -133,12 +145,13 @@ namespace LB3
                 TCP1 = new(UserIP);
                 UDP1 = new(UserIP);
                 UDP1.SendBroadcast(FormatMessage($"{UserName} {UserIP} ", 1));
-                Task[] Tasks = new Task[3];
-                Tasks[0] = Task.Run(() => BeginAddClients());
-                Tasks[1] = Task.Run(() => BeginReceiveBroadcast());
-                Tasks[2] = Task.Run(() => BeginMessaging());
-                Console.WriteLine(Arrow + "CHAT STARTED!");
-                Task.WaitAll(Tasks);
+                Task[] Tasks = {
+                    Task.Run(() => BeginAddClients()),
+                    Task.Run(() => BeginReceiveBroadcast()),
+                    Task.Run(() => BeginMessaging())
+                };
+                Console.WriteLine(StringElements[1] + StringElements[4]);
+                Task.WaitAny(Tasks);
             }
             catch (Exception ex)
             {

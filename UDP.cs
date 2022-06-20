@@ -1,4 +1,4 @@
-﻿using System.Net;
+using System.Net;
 using System.Net.Sockets;
 
 namespace LB3
@@ -19,7 +19,7 @@ namespace LB3
             UdpClient Sender = new();
 
             Sender.Send(UserData, UserData.Length, "255.255.255.255", UdpPort);
-            Sender.Close();
+            Sender.Dispose();
         }
         public byte[] ReceiveBroadcast()
         {
